@@ -1,0 +1,5 @@
+# TRMT Configuration Options
+# Lower numbers = Faster trail formation. Higher numbers = Slower trail formation.
+erosion-speed:
+  min: 15.0
+  max: 45.0

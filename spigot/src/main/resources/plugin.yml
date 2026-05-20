@@ -1,0 +1,9 @@
+name: TRMT
+version: 1.0.0
+main: milkucha.trmt.TRMTPlugin
+api-version: 1.20
+commands:
+  trmt:
+    description: Manage block erosion settings.
+    permission: trmt.admin
+    usage: /trmt [setspeed|reloadconfig|convert-to-vanilla|eroded-chunks]
