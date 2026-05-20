@@ -1,0 +1,6 @@
+milkucha\trmt\erosion\BlockThresholds.class
+milkucha\trmt\erosion\ErosionSaveState.class
+milkucha\trmt\erosion\ErosionEntry.class
+milkucha\trmt\TRMTPlugin.class
+milkucha\trmt\erosion\ErosionSaveState$SavedEntry.class
+milkucha\trmt\erosion\ErosionMapManager.class
