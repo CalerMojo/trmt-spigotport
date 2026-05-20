@@ -17,7 +17,7 @@ A dynamic terrain plugin that adds a gradual erosion system to the game, slowly 
 
 - **Spigot/Bukkit/Paper Support**
 - **Customizable erosion speed based on number of steps (/setspeed)**
-- **Multiplayer supported**
+- **Multiplayer and GeyserMC Supported**
 
 ## Showcase
 [![Watch the video](https://img.youtube.com/vi/OvsNVaFiK1Y/maxresdefault.jpg)](https://www.youtube.com/watch?v=OvsNVaFiK1Y)
