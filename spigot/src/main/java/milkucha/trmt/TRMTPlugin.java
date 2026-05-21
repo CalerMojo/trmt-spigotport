@@ -88,8 +88,9 @@ public class TRMTPlugin extends JavaPlugin implements Listener, CommandExecutor,
         double bootModifier = getConfig().getDouble("modifiers.boots." + bootType, getConfig().getDouble("modifiers.boots.none", 0.5));
         weight *= bootModifier;
 
-        if (boots != null && boots.hasItemMeta() && boots.getItemMeta().hasEnchant(Enchantment.FEATHER_FALLING)) {
-            int level = boots.getEnchantmentLevel(Enchantment.FEATHER_FALLING);
+        // 🛠️ FIX INTEGRATED: Replaced Enchantment.FEATHER_FALLING with Spigot's native identification marker: PROTECTION_FALL
+        if (boots != null && boots.hasItemMeta() && boots.getItemMeta().hasEnchant(Enchantment.PROTECTION_FALL)) {
+            int level = boots.getEnchantmentLevel(Enchantment.PROTECTION_FALL);
             double reductionPerLevel = getConfig().getDouble("modifiers.feather-falling-reduction-per-level", 0.15);
             double reductionFactor = 1.0 - (level * reductionPerLevel);
             if (reductionFactor < 0.1) reductionFactor = 0.1;
@@ -135,7 +136,6 @@ public class TRMTPlugin extends JavaPlugin implements Listener, CommandExecutor,
                     return true;
                 }
 
-                // ⚙️ RESTORE DEFAULT SPEEDS CHECK
                 if (args[1].equalsIgnoreCase("default")) {
                     getConfig().set("erosion-speed.min", 15.0);
                     getConfig().set("erosion-speed.max", 45.0);
@@ -174,7 +174,6 @@ public class TRMTPlugin extends JavaPlugin implements Listener, CommandExecutor,
                     return true;
                 }
 
-                // ⚙️ RESTORE DEFAULT DAYS CHECK
                 if (args[1].equalsIgnoreCase("default")) {
                     getConfig().set("deerosion.inactivity-days", 3.0);
                     saveConfig();
@@ -222,7 +221,6 @@ public class TRMTPlugin extends JavaPlugin implements Listener, CommandExecutor,
         return false;
     }
 
-    // --- AUTOFILL / TAB COMPLETION ---
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> completions = new ArrayList<>();
@@ -244,7 +242,6 @@ public class TRMTPlugin extends JavaPlugin implements Listener, CommandExecutor,
             return completions;
         }
 
-        // ⚙️ UPDATED AUTOFILL NODES TO SUGGEST "default" FOR ARGUMENT 2
         if (args.length == 2 && args[0].equalsIgnoreCase("setspeed")) {
             List<String> opts = Arrays.asList("default", "<minSteps>");
             StringUtil.copyPartialMatches(args[1], opts, completions);
