@@ -27,7 +27,7 @@ public class ErosionMapManager {
 
     private ErosionMapManager() {
         this.storageFile = new File(TRMTPlugin.INSTANCE.getDataFolder(), "data.json");
-        startDeErosionTask(); // Start background trail healing loop
+        startDeErosionTask();
     }
 
     public static ErosionMapManager getInstance() {
@@ -39,16 +39,15 @@ public class ErosionMapManager {
         Location loc = block.getLocation();
         Material mat = block.getType();
 
-        // Check if the stepped-on block belongs to our core target families
+        // Check if the target block is a sturdy trail block or soft trampleable foliage
         boolean isErodible = (mat == Material.GRASS_BLOCK || mat == Material.DIRT || 
                               mat == Material.SAND || mat == Material.COARSE_DIRT || 
-                              mat.name().endsWith("_LEAVES"));
+                              mat.name().endsWith("_LEAVES") || isTrampleablePlant(mat));
 
         if (!isErodible) return;
 
         ErosionEntry existing = erosionMap.get(loc);
         
-        // Safety change check: If block material was manually swapped, clear tracking history
         if (existing != null && existing.getTrackedMaterial() != mat) {
             erosionMap.remove(loc);
             existing = null;
@@ -67,10 +66,19 @@ public class ErosionMapManager {
         }
     }
 
+    // Helper classification check for soft ground-level undergrowth vegetation families
+    private boolean isTrampleablePlant(Material mat) {
+        String name = mat.name();
+        return name.equals("SHORT_GRASS") || name.equals("TALL_GRASS") || 
+               name.equals("FERN") || name.equals("LARGE_FERN") || 
+               name.contains("FLOWER") || name.endsWith("SAPLING") || 
+               name.equals("DEAD_BUSH");
+    }
+
     private void advanceStage(Block block, ErosionEntry entry, long currentTime) {
         Material currentMat = block.getType();
 
-        // Ground-based trail degradation progression loop
+        // 1. Solid Ground Paths Block Swaps
         if (currentMat == Material.GRASS_BLOCK) {
             entry.advanceGrassStage(BlockThresholds.randomThreshold(currentMat));
             if (entry.getErosionStage() == 3) {
@@ -83,21 +91,25 @@ public class ErosionMapManager {
             block.setType(Material.SMOOTH_SANDSTONE_SLAB, true);
             erosionMap.remove(block.getLocation());
         } 
-        // Leaf and brush undergrowth clearing progression loop
+        // 2. Leaf Block Thinning & Trampling Path
         else if (currentMat.name().endsWith("_LEAVES")) {
             entry.advanceGrassStage(BlockThresholds.randomThreshold(currentMat));
             if (entry.getErosionStage() >= 3) {
-                block.setType(Material.AIR, true);
+                block.setType(Material.AIR, true); // Erase the leaf block completely
                 erosionMap.remove(block.getLocation());
             } else {
-                block.setType(Material.MANGROVE_ROOTS, true);
+                block.setType(Material.MANGROVE_ROOTS, true); // Thinned branch proxy
             }
+        }
+        // 3. 🌿 NEW PLANT TRAMPLING ACTION: Destroys plants instantly when thresholds are fulfilled
+        else if (isTrampleablePlant(currentMat)) {
+            block.setType(Material.AIR, true);
+            erosionMap.remove(block.getLocation());
         }
     }
 
     // --- AUTOMATED HEALING LOOP (DE-EROSION) ---
     private void startDeErosionTask() {
-        // Runs every 5 minutes (6000 ticks) to check for abandoned paths
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -114,18 +126,14 @@ public class ErosionMapManager {
                     Location loc = mapEntry.getKey();
                     ErosionEntry entry = mapEntry.getValue();
 
-                    // Skip blocks in chunks that aren't currently loaded
                     if (!loc.getWorld().isChunkLoaded(loc.getBlockX() >> 4, loc.getBlockZ() >> 4)) continue;
 
                     long currentWorldTime = loc.getWorld().getFullTime();
                     long timeElapsed = currentWorldTime - entry.getLastTouchedGameTime();
 
-                    // If the block hasn't been stepped on within the configured day threshold...
                     if (timeElapsed >= ticksInactivityTimeout) {
-                        // 20% random probability chance to clear step history per processing cycle
                         if (ThreadLocalRandom.current().nextDouble() < 0.20) {
-                            // Drop tracking memory to freeze block at current stage & reset counters
-                            iterator.remove(); 
+                            iterator.remove(); // Drop tracking index, freezing the current block state
                         }
                     }
                 }
@@ -133,7 +141,6 @@ public class ErosionMapManager {
         }.runTaskTimer(TRMTPlugin.INSTANCE, 6000L, 6000L);
     }
 
-    // --- RAM CLEANUP ON UNLOAD ---
     public void pruneChunkMemory(org.bukkit.Chunk chunk) {
         if (erosionMap.isEmpty()) return;
         erosionMap.keySet().removeIf(loc -> 
