@@ -37,7 +37,6 @@ public class TRMTPlugin extends JavaPlugin implements Listener, CommandExecutor,
         saveDefaultConfig();
         getServer().getPluginManager().registerEvents(this, this);
         
-        // Register this class as both the Executor and the Tab Completer
         this.getCommand("trmt").setExecutor(this);
         this.getCommand("trmt").setTabCompleter(this);
 
@@ -56,13 +55,21 @@ public class TRMTPlugin extends JavaPlugin implements Listener, CommandExecutor,
             event.getFrom().getBlockZ() == event.getTo().getBlockZ()) return;
 
         Block standingOn = event.getTo().getBlock().getRelative(BlockFace.DOWN);
+        Block runningThrough = event.getTo().getBlock();
+        
         float stepWeight = event.getPlayer().isSprinting() ? 1.5f : 1.0f;
+        long worldTime = event.getTo().getWorld().getFullTime();
 
-        ErosionMapManager.getInstance().onStep(
-            standingOn, 
-            stepWeight, 
-            standingOn.getWorld().getFullTime()
-        );
+        ErosionMapManager.getInstance().onStep(standingOn, stepWeight, worldTime);
+        
+        if (runningThrough.getType().name().endsWith("_LEAVES")) {
+            ErosionMapManager.getInstance().onStep(runningThrough, stepWeight, worldTime);
+        }
+    }
+
+    @EventHandler
+    public void onChunkUnload(org.bukkit.event.world.ChunkUnloadEvent event) {
+        ErosionMapManager.getInstance().pruneChunkMemory(event.getChunk());
     }
 
     @EventHandler
@@ -101,7 +108,7 @@ public class TRMTPlugin extends JavaPlugin implements Listener, CommandExecutor,
                     double max = Double.parseDouble(args[2]);
 
                     if (min < 0 || max < 0 || max < min) {
-                        sender.sendMessage(ChatColor.RED + "Invalid values. Max must be greater than min.");
+                        sender.sendMessage(ChatColor.RED + "Invalid values. Max must be positive and greater than min.");
                         return true;
                     }
 
@@ -115,6 +122,29 @@ public class TRMTPlugin extends JavaPlugin implements Listener, CommandExecutor,
                 }
                 return true;
 
+            // 🕒 NEW TIMEOUT COMMAND IMPLEMENTATION
+            case "setdays":
+                if (args.length < 2) {
+                    sender.sendMessage(ChatColor.RED + "Usage: /trmt setdays <minecraftDays>");
+                    return true;
+                }
+                try {
+                    double days = Double.parseDouble(args[1]);
+
+                    if (days < 0) {
+                        sender.sendMessage(ChatColor.RED + "Days cannot be a negative value.");
+                        return true;
+                    }
+
+                    getConfig().set("deerosion.inactivity-days", days);
+                    saveConfig();
+
+                    sender.sendMessage(ChatColor.GREEN + "[TRMT] Inactivity timeout before de-erosion set to: " + days + " Minecraft days.");
+                } catch (NumberFormatException e) {
+                    sender.sendMessage(ChatColor.RED + "Please provide a valid numeric value for days.");
+                }
+                return true;
+
             case "reloadconfig":
                 reloadConfig();
                 sender.sendMessage(ChatColor.GREEN + "[TRMT] Config reloaded.");
@@ -123,16 +153,16 @@ public class TRMTPlugin extends JavaPlugin implements Listener, CommandExecutor,
             case "convert-to-vanilla":
                 if (args.length > 1 && args[1].equalsIgnoreCase("confirm")) {
                     ErosionMapManager.getInstance().convertAllErodedToVanilla();
-                    sender.sendMessage(ChatColor.GREEN + "[TRMT] Wiped step memory cache.");
+                    sender.sendMessage(ChatColor.GREEN + "[TRMT] Wiped step memory cache. Active paths reset.");
                 } else {
-                    sender.sendMessage(ChatColor.YELLOW + "[TRMT] WARNING: This wipes step history. Blocks stay frozen as their current block variant.");
+                    sender.sendMessage(ChatColor.YELLOW + "[TRMT] WARNING: This wipes active step history. Existing modified blocks freeze as their current variant.");
                     sender.sendMessage(ChatColor.GOLD + "Run /trmt convert-to-vanilla confirm to proceed.");
                 }
                 return true;
 
             case "eroded-chunks":
                 int totalActive = ErosionMapManager.getInstance().getTrackingCount();
-                sender.sendMessage(ChatColor.GREEN + "[TRMT] Tracking " + totalActive + " active unique block coordinates.");
+                sender.sendMessage(ChatColor.GREEN + "[TRMT] Tracking " + totalActive + " active unique block coordinates in live memory.");
                 return true;
         }
         return false;
@@ -141,36 +171,34 @@ public class TRMTPlugin extends JavaPlugin implements Listener, CommandExecutor,
     // --- AUTOFILL / TAB COMPLETION ---
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        // Create an empty list to store suggestions
         List<String> completions = new ArrayList<>();
         
-        // Security check: Only suggest commands if they have permission
         if (!sender.hasPermission("trmt.admin")) {
             return completions;
         }
 
-        // Handle the first argument: /trmt <arg>
+        // 🕒 UPDATED AUTOFILL: Added "setdays" to the primary command suggestion engine
         if (args.length == 1) {
-            List<String> subCommands = Arrays.asList("setspeed", "reloadconfig", "convert-to-vanilla", "eroded-chunks");
-            // Filters choices based on what the player has already typed so far
+            List<String> subCommands = Arrays.asList("setspeed", "setdays", "reloadconfig", "convert-to-vanilla", "eroded-chunks");
             StringUtil.copyPartialMatches(args[0], subCommands, completions);
             Collections.sort(completions);
             return completions;
         }
 
-        // Handle the second argument: /trmt convert-to-vanilla <confirm>
         if (args.length == 2 && args[0].equalsIgnoreCase("convert-to-vanilla")) {
             List<String> confirmations = Collections.singletonList("confirm");
             StringUtil.copyPartialMatches(args[1], confirmations, completions);
             return completions;
         }
 
-        // Suggest placeholder info text for setspeed arguments
         if (args.length == 2 && args[0].equalsIgnoreCase("setspeed")) {
             return Collections.singletonList("<minSteps>");
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("setspeed")) {
             return Collections.singletonList("<maxSteps>");
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("setdays")) {
+            return Collections.singletonList("<minecraftDays>");
         }
 
         return completions;
