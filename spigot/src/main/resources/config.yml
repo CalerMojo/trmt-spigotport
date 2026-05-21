@@ -3,3 +3,9 @@
 erosion-speed:
   min: 15.0
   max: 45.0
+
+# De-erosion (Trail Healing Mechanics)
+deerosion:
+  # The number of full Minecraft days an area must be left entirely un-stepped on
+  # before nature randomly begins reclaiming the track.
+  inactivity-days: 3.0
