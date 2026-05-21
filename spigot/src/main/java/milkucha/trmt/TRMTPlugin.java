@@ -10,11 +10,14 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
+import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.StringUtil;
 
@@ -49,22 +52,61 @@ public class TRMTPlugin extends JavaPlugin implements Listener, CommandExecutor,
         ErosionMapManager.getInstance().saveState();
     }
 
+    // --- TRACK PLAYER MOVEMENTS WITH CONFIGURABLE MODIFIERS ---
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
         if (event.getFrom().getBlockX() == event.getTo().getBlockX() && 
             event.getFrom().getBlockZ() == event.getTo().getBlockZ()) return;
 
+        Player player = event.getPlayer();
         Block standingOn = event.getTo().getBlock().getRelative(BlockFace.DOWN);
-        Block runningThrough = event.getTo().getBlock();
+        Block runningThrough = event.getTo().getBlock(); // Torso/legs level block
         
-        float stepWeight = event.getPlayer().isSprinting() ? 1.5f : 1.0f;
+        // Calculate dynamic contextual weight using boots, mounts, leashes, and enchantments
+        float dynamicWeight = calculateDynamicWeight(player);
         long worldTime = event.getTo().getWorld().getFullTime();
 
-        ErosionMapManager.getInstance().onStep(standingOn, stepWeight, worldTime);
+        // 1. Process standard ground blocks (Grass, Sand, Dirt, Coarse Dirt)
+        ErosionMapManager.getInstance().onStep(standingOn, dynamicWeight, worldTime);
         
-        if (runningThrough.getType().name().endsWith("_LEAVES")) {
-            ErosionMapManager.getInstance().onStep(runningThrough, stepWeight, worldTime);
+        // 2. Process vertical foliage (Leaves and small Plants/Flowers/Bush undergrowth)
+        ErosionMapManager.getInstance().onStep(runningThrough, dynamicWeight, worldTime);
+    }
+
+    private float calculateDynamicWeight(Player player) {
+        // Base movement calculation
+        float weight = player.isSprinting() ? 1.5f : 1.0f;
+
+        // Modifier 1: Riding Mount Check
+        if (player.isInsideVehicle()) {
+            weight *= getConfig().getDouble("modifiers.riding-mount", 2.0);
         }
+
+        // Modifier 2: Leash Check (Is the player holding any entities on a lead?)
+        boolean holdingLeash = player.getNearbyEntities(10, 10, 10).stream()
+                .anyMatch(entity -> entity instanceof org.bukkit.entity.LivingEntity 
+                        && ((org.bukkit.entity.LivingEntity) entity).isLeashed() 
+                        && ((org.bukkit.entity.LivingEntity) entity).getLeashHolder().equals(player));
+        if (holdingLeash) {
+            weight *= getConfig().getDouble("modifiers.leading-mob", 1.5);
+        }
+
+        // Modifier 3: Boots Check
+        ItemStack boots = player.getInventory().getArmorContents()[0]; // 0 is always boots index
+        String bootType = (boots == null || boots.getType() == Material.AIR) ? "none" : boots.getType().name().toLowerCase().split("_")[0];
+        double bootModifier = getConfig().getDouble("modifiers.boots." + bootType, getConfig().getDouble("modifiers.boots.none", 0.5));
+        weight *= bootModifier;
+
+        // Modifier 4: Feather Falling Enchantment Check
+        if (boots != null && boots.hasItemMeta() && boots.getItemMeta().hasEnchant(Enchantment.FEATHER_FALLING)) {
+            int level = boots.getEnchantmentLevel(Enchantment.FEATHER_FALLING);
+            double reductionPerLevel = getConfig().getDouble("modifiers.feather-falling-reduction-per-level", 0.15);
+            double reductionFactor = 1.0 - (level * reductionPerLevel);
+            if (reductionFactor < 0.1) reductionFactor = 0.1; // Cap mitigation at 90% max
+            weight *= reductionFactor;
+        }
+
+        return weight;
     }
 
     @EventHandler
@@ -122,7 +164,6 @@ public class TRMTPlugin extends JavaPlugin implements Listener, CommandExecutor,
                 }
                 return true;
 
-            // 🕒 NEW TIMEOUT COMMAND IMPLEMENTATION
             case "setdays":
                 if (args.length < 2) {
                     sender.sendMessage(ChatColor.RED + "Usage: /trmt setdays <minecraftDays>");
@@ -177,7 +218,6 @@ public class TRMTPlugin extends JavaPlugin implements Listener, CommandExecutor,
             return completions;
         }
 
-        // 🕒 UPDATED AUTOFILL: Added "setdays" to the primary command suggestion engine
         if (args.length == 1) {
             List<String> subCommands = Arrays.asList("setspeed", "setdays", "reloadconfig", "convert-to-vanilla", "eroded-chunks");
             StringUtil.copyPartialMatches(args[0], subCommands, completions);
@@ -197,6 +237,7 @@ public class TRMTPlugin extends JavaPlugin implements Listener, CommandExecutor,
         if (args.length == 3 && args[0].equalsIgnoreCase("setspeed")) {
             return Collections.singletonList("<maxSteps>");
         }
+
         if (args.length == 2 && args[0].equalsIgnoreCase("setdays")) {
             return Collections.singletonList("<minecraftDays>");
         }
