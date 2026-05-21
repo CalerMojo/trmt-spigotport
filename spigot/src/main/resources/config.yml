@@ -4,8 +4,28 @@ erosion-speed:
   min: 15.0
   max: 45.0
 
-# De-erosion (Trail Healing Mechanics)
+# De-erosion (Trail Inactivity Healing Mechanics)
 deerosion:
-  # The number of full Minecraft days an area must be left entirely un-stepped on
-  # before nature randomly begins reclaiming the track.
   inactivity-days: 3.0
+
+# Dynamic Step Modifiers (Multipliers applied to base step weights)
+modifiers:
+  # Mounts (e.g., Riding horses, donkeys, mules, camels)
+  riding-mount: 2.0
+  
+  # Leash (Walking a cow, horse, sheep, etc. on a lead behind you)
+  leading-mob: 1.5
+  
+  # Armor adjustments based on the boots worn
+  boots:
+    leather: 0.8
+    gold: 1.0
+    chainmail: 1.1
+    iron: 1.3
+    diamond: 1.4
+    netherite: 1.6
+    none: 0.5
+
+  # Enchantments (Reduces trail impact per level of feather falling)
+  # Formula: stepWeight * (1.0 - (level * reduction_per_level))
+  feather-falling-reduction-per-level: 0.15
