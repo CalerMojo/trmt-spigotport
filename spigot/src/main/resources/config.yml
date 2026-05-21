@@ -10,13 +10,14 @@ deerosion:
 
 # Dynamic Step Modifiers (Multipliers applied to base step weights)
 modifiers:
-  # Mounts (e.g., Riding horses, donkeys, mules, camels)
   riding-mount: 2.0
-  
-  # Leash (Walking a cow, horse, sheep, etc. on a lead behind you)
   leading-mob: 1.5
   
-  # Armor adjustments based on the boots worn
+  # Vegetation Durability Scale
+  # 0.2 means plants/leaves have only 20% of the threshold of a normal block
+  # (e.g. if a ground path takes 30 steps, a bush will vanish in just 6 steps!)
+  vegetation-durability-factor: 0.2
+
   boots:
     leather: 0.8
     gold: 1.0
@@ -26,6 +27,4 @@ modifiers:
     netherite: 1.6
     none: 0.5
 
-  # Enchantments (Reduces trail impact per level of feather falling)
-  # Formula: stepWeight * (1.0 - (level * reduction_per_level))
   feather-falling-reduction-per-level: 0.15
